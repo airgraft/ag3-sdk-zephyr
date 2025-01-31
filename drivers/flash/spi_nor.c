@@ -1197,11 +1197,14 @@ static int setup_pages_layout(const struct device *dev)
  * @param info The flash info structure
  * @return 0 on success, negative errno code otherwise
  */
+#define SPI_INIT_RETRY_COUNT 3
 static int spi_nor_configure(const struct device *dev)
 {
 	const struct spi_nor_config *cfg = dev->config;
 	uint8_t jedec_id[SPI_NOR_MAX_ID_LEN];
-	int rc;
+	int rc,retry;
+
+	retry = SPI_INIT_RETRY_COUNT;
 
 	/* Validate bus and CS is ready */
 	if (!spi_is_ready_dt(&cfg->spi)) {
@@ -1223,6 +1226,7 @@ static int spi_nor_configure(const struct device *dev)
 	}
 #endif
 
+spi_nor_retry:
 	/* After a soft-reset the flash might be in DPD or busy writing/erasing.
 	 * Exit DPD and wait until flash is ready.
 	 */
@@ -1261,6 +1265,11 @@ static int spi_nor_configure(const struct device *dev)
 		LOG_ERR("Device id %02x %02x %02x does not match config %02x %02x %02x",
 			jedec_id[0], jedec_id[1], jedec_id[2],
 			cfg->jedec_id[0], cfg->jedec_id[1], cfg->jedec_id[2]);
+		if(--retry > 0)
+		{
+			k_sleep(K_MSEC(100));
+			goto spi_nor_retry;
+		}
 		return -EINVAL;
 	}
 #endif
